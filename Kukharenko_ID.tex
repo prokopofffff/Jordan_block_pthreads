@@ -1,0 +1,283 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english,russian]{babel}
+\usepackage[T2A]{fontenc}
+
+\usepackage[
+  a4paper, mag=1000, includefoot,
+  left=1.1cm, right=1.1cm, top=1.2cm, bottom=1.2cm, headsep=0.8cm, footskip=0.8cm
+]{geometry}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{times}
+\usepackage{mathptmx}
+
+\IfFileExists{pscyr.sty}
+{
+  \usepackage{pscyr}
+  \def\rmdefault{ftm}
+  \def\sfdefault{ftx}
+  \def\ttdefault{fer}
+  \DeclareMathAlphabet{\mathbf}{OT1}{ftm}{bx}{it} % bx/it or bx/m
+}
+
+\mathsurround=0.1em
+\clubpenalty=1000%
+\widowpenalty=1000%
+\brokenpenalty=2000%
+\frenchspacing%
+\tolerance=2500%
+\hbadness=1500%
+\vbadness=1500%
+\doublehyphendemerits=50000%
+\finalhyphendemerits=25000%
+\adjdemerits=50000%
+
+\documentclass{minimal}
+\usepackage{mathtools}
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+
+
+\begin{document}
+
+\author{Кухаренко Иван}
+\title {Метод Жордана решения линейной системы}
+\date{\today}
+\maketitle
+
+\section{Хранение и извлечение}
+
+Для реализации блочного алгоритма Жордана для решения линейной системы уравнений были прописаны функции \texttt{set\_block} и \texttt{get\_block}.
+
+\begin{enumerate}
+    \item \texttt{double *A} - исходная матрица
+    \item \texttt{double *block }- блок
+    \item \texttt{int n} - размерность исходной матрицы
+    \item \texttt{int m} - размерность блока
+    \item \texttt{int i} - номер блочной строки
+    \item \texttt{int j} - номер блочного столбца
+\end{enumerate}
+
+\begin{verbatim}
+void set_block (double *A, double *block, size_t n, size_t m, size_t i, size_t j) {
+    size_t k = n / m;
+    size_t l = n % m;
+    size_t w = 1, h = 1;
+    if(j < k){
+        w = m;
+        h = m;
+    }
+    double *corner = A + i * n * m + j * m;
+    for(size_t x = 0; x < h; x++){
+        for(size_t y = 0; y < w; y++){
+            corner[x * n + y] = block[x * m + y];
+        }
+    }
+}
+
+void get_block (double *A, double *block, size_t n, size_t m, size_t i, size_t j){
+    size_t k = n / m;
+    size_t l = n % m;
+    size_t w = 1, h = 1;
+    if(j < k){
+        w = m;
+        h = m;
+    }
+    double *corner = A + i * n * m + j * m;
+    for(size_t x = 0; x < h; x++){
+        for(size_t y = 0; y < w; y++){
+            block[x * m + y] = corner[x * n + y];
+        }
+    }
+}
+
+\end{verbatim}
+
+\section{Описание алгоритма}
+
+Решаем линейную систему $Ax=b$ с матрицей
+$$A=
+   \begin{pmatrix}
+     a_{1,1}& a_{1,2} &\ldots & a_{1,n}\\
+     a_{2,1}& a_{2,2} &\ldots & a_{2,n}\\
+     \vdots& \vdots &\ddots & \vdots\\
+     a_{n,1}& a_{n,2} &\ldots & a_{n,n}
+    \end{pmatrix}
+$$
+
+Припишем справа столбец свободных членов:
+
+$$A=
+   \begin{pmatrix}
+     a_{1,1}& a_{1,2} &\ldots & a_{1,n} & \mid & b_1\\
+     a_{2,1}& a_{2,2} &\ldots & a_{2,n} & \mid & b_2\\
+     \vdots& \vdots &\ddots & \vdots\\
+     a_{n,1}& a_{n,2} &\ldots & a_{n,n} & \mid & b_n
+    \end{pmatrix}
+$$
+
+Заменим элементы матрицы на блоки:
+
+$$
+A=
+   \begin{pmatrix}
+     A^{m \times m}_{1,1}& A^{m \times m}_{1,2} &\ldots & A^{m \times m}_{1,k} & A^{m \times l}_{1,k+1} & \mid & B^{m \times 1}_1\\
+     A^{m \times m}_{2,1}& A^{m \times m}_{2,2} &\ldots & A^{m \times l}_{2,k} & A^{m \times l}_{2,k+1} & \mid & B^{m \times 1}_2\\
+     \vdots& \vdots &\ddots & \vdots & \vdots & \mid  & \vdots\\
+     A^{m \times m}_{k,1}& A^{m \times m}_{k,2} &\ldots & A^{m \times l}_{k,k} & A^{m \times l}_{k,k+1} & \mid & B^{m \times 1}_k\\
+     A^{l \times m}_{k+1,1} & A^{l \times m}_{k+1,2} & \ldots & A^{l \times m}_{k+1,k} & A^{l \times l}_{k+1,k+1} & \mid & B^{l \times 1}_{k+1}
+    \end{pmatrix}
+$$
+
+Рассмотрим первый блочный столбец. Каждый поток берет первый блок и вычисляет его обратную матрицу. Если этот блок необратим, то система не имеет решений, программа завершает свою работу. Если же он обратим, то дождемся пока все потоки найдут его обратную матрицу. Далее каждый поток будет работать со своими блоками, то есть  $i$-ый поток работает с блоком $A^{m \times m}_{1, i + 1}$, при этом $i + 1 \leq k + 1$. Далее параллельно выполняется деление (умножение на обратную матрицу) описанное в отчете последовательной программы. Если остались блоки, с которыми программа еще не работала, то первый поток берет $p + 2$-ой блок, второй поток берет $p + 3$-ий блок и так далее ($p$ - количество потоков). Блок из столбца свободных членов берет всегда последний поток.
+
+$$
+    A^{m \times m}_{1,j} = C^{m \times m}_1A^{m \times m}_{1,j}, \quad j=2,\dots,\dots,k, \quad A^{m \times l}_{1, k+1} = C^{m \times m}_1A^{m \times l}_{1,k+1},
+$$
+$$
+    B^{m \times 1}_1 = C^{m \times m}_1B^{m \times 1}_1,
+$$
+
+Дождемся пока все потоки завершат этот этап. Далее необходимо занулить все матричные блоки первого блочного столбца со 2 по $k+1$ строку по формулам:
+$$
+    A^{m \times m}_{i,j} = A^{m \times m}_{i,j} - A^{m \times m}_{i,1}A^{m \times m}_{1,j}, \quad i,j=2,\dots,k,
+$$
+$$
+    A^{m \times l}_{i, k+1} = A^{m \times l}_{i, k+1} - A^{m \times m}_{i, 1}A^{m \times l}_{1, k+1}, \quad i=2,\dots,k,
+$$
+$$
+    A^{l \times m}_{k+1, j} = A^{l \times m}_{k+1, j} - A^{l \times m}_{k+1, 1}A^{m \times m}_{1, j}, \quad j=2,\dots,k,
+$$
+$$
+    A^{l \times l}_{k+1, k+1} = A^{l \times l}_{k+1, k+1} - A^{l \times m}_{k+1, s}A^{m \times l}_{1, k+1},
+$$
+$$
+    B^{m \times 1}_i = B^{m \times 1}_i - A^{m \times m}_{i,1}B^{m \times 1}_1, \quad i=2,\dots,k,
+$$
+$$
+    B^{l \times 1}_{k+1} = B^{l \times 1}_{k+1} - A^{l \times m}_{k+1, 1}B^{m \times 1}_1,
+$$
+$$
+  A_{1,1}=0, \quad i=2,\dots,k+1,  
+$$
+
+При этом каждый поток работает со своими блоками, как описано выше ($i$-ый поток берет блок $A^{m \times m}_{1, i + 1}$ и вычитает из $A^{m \times m}_{s, i + 1}$). Если остались еще блоки, то берет следующий, как описано выше. Блоки из столбца свободных членов берет последний поток. Дождемся пока все потоки завершат этот этап. После 1-ого шага исходная матрица имеет вид:
+
+$$
+    A=
+   \begin{pmatrix}
+     E^{m \times m} & A^{m \times m}_{1,2} &\ldots & A^{m \times m}_{1,k} & A^{m \times l}_{1,k+1} & \mid & B^{m \times 1}_1\\
+     0 & A^{m \times m}_{2,2} &\ldots & A^{m \times m}_{2,k} & A^{m \times l}_{2,k+1} & \mid & B^{m \times 1}_2\\
+     \vdots& \vdots &\ddots & \vdots & \vdots & \mid  & \vdots\\
+    0 & A^{m \times m}_{k,2} &\ldots & A^{m \times m}_{k,k} & A^{m \times l}_{k,k+1} & \mid & B^{m \times 1}_k\\
+     0 & A^{l \times m}_{k+1,2} & \ldots & A^{l \times m}_{k+1,k} & A^{l \times l}_{k+1,k+1} & \mid & B^{l \times 1}_{k+1}
+    \end{pmatrix}
+$$
+На $g$-ом шаге ($g=2,\dots,k+1$) все действия аналогичны первому шагу, будем рассматривать блок в $g$-ом блочном столбеце и $g$-ой блочной строку, найдем его обратную матрицу $C^{m \times m}_g$. Будем пользоваться следующими формулами:
+$$
+    A^{m \times m}_{g,j} = C^{m \times m}_gA^{m \times m}_{g,j}, \quad j=g+1,\dots,k, \quad A^{m \times l}_{g, k+1} = C^{m \times m}_gA^{m \times l}_{g,k+1},
+$$
+$$
+    B^{m \times 1}_g = C^{m \times m}_gB^{m \times 1}_g,
+$$
+$$
+    A^{m \times m}_{i,j} = A^{m \times m}_{i,j} - A^{m \times m}_{i,g}A^{m \times m}_{g,j},
+$$
+$$
+    i=1,\dots,g-1,g+1,\dots,k, \; j=g+1,\dots,k,
+$$
+$$
+    A^{m \times l}_{i, k+1} = A^{m \times l}_{i, k+1} - A^{m \times m}_{i, g}A^{m \times l}_{g, k+1}, \quad i=1,\dots,g-1,g+1,\dots,k,
+$$
+$$
+    A^{l \times m}_{k+1, j} = A^{l \times m}_{k+1, j} - A^{l \times m}_{k+1, g}A^{m \times m}_{g, j}, \quad j=g+1,\dots,k,
+$$
+$$
+    A^{l \times l}_{k+1, k+1} = A^{l \times l}_{k+1, k+1} - A^{l \times m}_{k+1, g}A^{m \times l}_{g, k+1},
+$$
+$$
+    B^{m \times 1}_i = B^{m \times 1}_i - A^{m \times m}_{i,g}B^{m \times 1}_g, \quad i=1,\dots,g-1,g+1,\dots,k,
+$$
+$$
+    B^{l \times 1}_{k+1} = B^{l \times 1}_{k+1} - A^{l \times m}_{k+1, g}B^{m \times 1}_g,
+$$
+$$
+    A_{i,g}=0, \quad i=1,\dots,g-1,g+1,\dots,k+1,
+$$
+
+При этом блоки разделяются, как описано выше (первый поток берет $g + 1$-ый блок, второй поток берет $g + 2$-ой блок и так далее). Дождемся пока все потоки завершат работу. Тогда исходная матрица будет иметь вид:
+$$
+    A=
+   \begin{pmatrix}
+     E^{m \times m} & 0 &\ldots & 0 & 0 & \mid & B^{m \times 1}_1\\
+     0 & E^{m \times m} &\ldots & 0 & 0 & \mid & B^{m \times 1}_2\\
+     \vdots& \vdots &\ddots & \vdots & \vdots & \mid  & \vdots\\
+    0 & 0 &\ldots & E^{m \times m} & 0 & \mid & B^{m \times 1}_k\\
+     0 & 0 & \ldots & 0 & E^{l \times l} & \mid & B^{l \times 1}_{k+1}
+    \end{pmatrix}
+$$
+Тогда решением исходной системы будет вектор-столбец $B$.
+
+\section{Сложность алгоритма}
+Воспользуемся фактом, что неблочный алгоритм Гаусса для поиска обратной матрицы имеет сложность $\frac{8n^3}{3}+O(n^2)$,  умножение двух матриц $2n^3-n^2$, вычитание двух матриц $n^2$, умножение матрицы и вектора $n^2$. Пусть также $k=\frac{n}{m}$.
+\begin{enumerate}
+    \item Для каждого блочного столбца необходимо найти обратную матрицу: 
+$$
+    (\frac{8n^3}{3}+O(n^2))\sum^k_{j=1}j=(\frac{8n^3}{3}+O(n^2))\frac{k(k+1)}{2}=(\frac{8n^3}{3}+O(n^2))\frac{\frac{n}{m}(\frac{n}{m}+1)}{2}=
+$$
+$$
+=\frac{4n^2m}{3}+\frac{4nm^2}{3}+O(n^2+nm)
+$$
+    \item Для каждой блочной строки необходимо произвести определенное количество умножений на обратную матрицу, сложность будет: 
+$$
+    (2m^3-m^2)\sum^{k-1}_{i=1}i=(2m^3-m^2)\frac{k(k-1)}{2}=(2m^3-m^2)\frac{\frac{n}{m}(\frac{n}{m}-1)}{2}=
+$$
+$$
+=n^2m-nm^2+O(n^2+nm)
+$$
+    \item При занулении по формулам необходимо произвести умножения, сложность будет: 
+$$
+    (2m^3-m^2)(k-1)\sum^{k-1}_{j=1}j=(2m^3-m^2)\frac{k(k-1)^2}{2}=(2m^3-m^2)\frac{(\frac{n}{m})^2(\frac{n}{m}-1)}{2}=
+$$
+$$
+    =n^3-2n^2m+nm^2+O(n^2+nm)
+$$
+    \item   При занулении по формулам необходимо произвести вычитания, сложность будет:
+$$
+    m^2\sum^{k-1}_{i=1}i^2=\frac{n^3}{3m}-\frac{n^2}{6}-\frac{nm}{6}=O(n^2+nm)
+$$
+\item Сложность операции умножения на обратную матрицу свободных членов:
+$$
+    m^2k=O(n^2)
+$$
+\item При занулении по формулам необходимо произвести умножения свободных членов, сложность будет:
+$$
+    m^2\sum^{k-1}_{i=1}i=O(n^2)
+$$
+\item При занулении по формулам необходимо произвести вычитания свободных членов, сложность будет:
+$$
+    m\sum^{k-1}_{i=1}i=\frac{n(\frac{n}{m})-1}{2}=O(n)
+$$
+\item При занулении верхних строчек необходимо произвести умножения, сложность будет:
+$$
+    (2m^3-m^2)\sum^{k-1}_{i=1}i^2=\frac{2n^3}{3}-\frac{n^2m}{3}-\frac{nm^2}{3}+O(n^2+nm)
+$$
+\item При занулении верхних строчек необходимо произвести вычитания, сложность будет:
+$$
+    m^2\sum^{k-1}_{i=1}i^2=O(n^2+nm)
+$$
+\end{enumerate}
+Общая сложность алгоритма:
+$$
+    S(n,m)=\frac{4n^3}{3}+\frac{5n^2m}{3}-\frac{nm^2}{3}+O(n^2+nm)
+$$
+\section{Сложность алгоритма в краевых случаях}
+$$
+    S(n,1)=\frac{4n^3}{3}+O(n^2)
+$$
+$$
+    S(n,n)=\frac{8n^3}{3}+O(n^2)
+$$
+\end{document}
