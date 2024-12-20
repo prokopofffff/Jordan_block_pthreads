@@ -169,10 +169,10 @@ int Jordan(double *A, double *B, double *X, double *C, double *block, double *do
         }
     }
     else{
-        pthread_t* threads = new pthread_t[p];
-        thread_args* args = new thread_args[p];
+        pthread_t* threads = new pthread_t[p - 1];
+        thread_args* args = new thread_args[p - 1];
 
-        for(int x = 0; x < p; x++){
+        for(int x = 0; x < p - 1; x++){
             args[x].A = A;
             args[x].n = n;
             args[x].m = m;
@@ -199,7 +199,21 @@ int Jordan(double *A, double *B, double *X, double *C, double *block, double *do
                 return -1;
             };
         }
-        for(int x = 0; x < p; x++){
+        args[p - 1].A = A;
+        args[p - 1].n = n;
+        args[p - 1].m = m;
+        args[p - 1].B = B;
+        args[p - 1].C = new double[m * m];
+        args[p - 1].dop_mat = new double[m * m];
+        args[p - 1].block = new double[m * m];
+        args[p - 1].X = new double[m];
+        args[p - 1].norm = norm;
+        args[p - 1].p = p;
+        args[p - 1].index = p;
+        args[p - 1].status = 0;
+        args[p - 1].tid = p - 1;
+        thread_func((void*)&args[p - 1]);
+        for(int x = 0; x < p - 1; x++){
             pthread_join(threads[x], 0);
         }
         if(args[0].status == -1){
