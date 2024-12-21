@@ -170,7 +170,7 @@ int Jordan(double *A, double *B, double *X, double *C, double *block, double *do
     }
     else{
         pthread_t* threads = new pthread_t[p - 1];
-        thread_args* args = new thread_args[p - 1];
+        thread_args* args = new thread_args[p];
 
         for(int x = 0; x < p - 1; x++){
             args[x].A = A;
