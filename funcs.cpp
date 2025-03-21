@@ -329,3 +329,9 @@ void zero(double *A, int n, int m){
         }
     }
 }
+
+double get_full_time(){
+    struct timeval buf;
+    gettimeofday(&buf, NULL);
+    return buf.tv_sec + buf.tv_usec / 1.e6;
+}

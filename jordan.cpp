@@ -37,74 +37,165 @@ void ReduceSum(int p, int* a, int n) {
     pthread_mutex_unlock(&m);
 }
 
-void* thread_func(void* args){
+void* thread_func2(void* args) {
+    thread_args* a = (thread_args*)args;
+    int k = a->n / a->m;
+    int l = a->n % a->m;
+    int bpt = k / a->p;
+    int h = (l == 0 ? k : k + 1);
+    int red = 0;
+    for (int r = 0; r < h; r++) {
+        int kp = (h - r - 1) / a->p;
+        int lp = (h - r - 1) % a->p;
+        int is_last_k = (r == k);
+        int block_size = is_last_k ? l : a->m;
+
+        get_block(a->A, a->block, a->n, a->m, r, r);
+        a->status = inverse(a->block, a->C, block_size, a->norm);
+        ReduceSum(a->p, &red, 1);
+        if (a->status == -1) return 0;
+        set_block(a->A, a->block, a->n, a->m, r, r);
+        for (int x = 0; x < kp; x++) {
+            int s = r + x * a->p + a->index;
+            int is_last_s = (s == k);
+            int block_size_s = is_last_s ? l : a->m; 
+
+            get_block(a->A, a->block, a->n, a->m, r, s);
+            multiply(a->C, a->block, a->dop_mat, block_size, block_size, block_size, block_size_s);
+            set_block(a->A, a->dop_mat, a->n, a->m, r, s);
+        }
+
+        if (a->index <= lp) {
+            int s = r + kp * a->p + a->index;
+            int is_last_s = (s == k);
+            int block_size_s = is_last_s ? l : a->m;
+
+            get_block(a->A, a->block, a->n, a->m, r, s);
+            multiply(a->C, a->block, a->dop_mat, block_size, block_size, block_size, block_size_s);
+            set_block(a->A, a->dop_mat, a->n, a->m, r, s);
+        }
+
+        if (a->index == a->p) {
+            get_vector(a->B, a->X, a->n, a->m, r);
+            multiply(a->C, a->X, a->dop_mat, block_size, block_size, block_size, 1);
+            set_vector(a->B, a->dop_mat, a->n, a->m, r);
+        }
+
+        for(int j = 0; j <= bpt; j++){
+            int i = j * a->p + a->index - 1;
+            ReduceSum(a->p);
+            if(i >= r) i++;
+            if(i >= h) break;
+            int block_size_rows = (i == k) ? l : a->m;
+
+            get_block(a->A, a->C, a->n, a->m, i, r);
+
+            for(int c = r + 1; c < h; c++){
+                int block_size_cols = (c == k) ? l : a->m;
+
+                get_block(a->A, a->block, a->n, a->m, r, c);
+                multiply(a->C, a->block, a->dop_mat, block_size_rows, a->m, a->m, block_size_cols);
+                get_block(a->A, a->block, a->n, a->m, i, c);
+                subtract(a->block, a->dop_mat, block_size_rows, block_size_cols);
+                set_block(a->A, a->block, a->n, a->m, i, c);
+            }
+
+            get_vector(a->B, a->X, a->n, a->m, r);
+            multiply(a->C, a->X, a->dop_mat, block_size_rows, block_size, block_size, 1);
+            get_vector(a->B, a->X, a->n, a->m, i);
+            subtract(a->X, a->dop_mat, block_size_rows, 1);
+            set_vector(a->B, a->X, a->n, a->m, i);
+
+            
+        }
+        ReduceSum(a->p, &red, 1);
+    }
+
+    return 0;
+}
+
+void* thread_func(void* args) {
     thread_args* a = (thread_args*)args;
     int k = a->n / a->m;
     int l = a->n % a->m;
     int h = (l == 0 ? k : k + 1);
     int red = 0;
-
-    for(int i = 0; i < h; i++){
+    for (int i = 0; i < h; i++) {
         int kp = (h - i - 1) / a->p;
         int lp = (h - i - 1) % a->p;
+        int is_last_k = (i == k);
+        int block_size = is_last_k ? l : a->m;
+
         get_block(a->A, a->block, a->n, a->m, i, i);
-        a->status = -1;
-        a->status = inverse(a->block, a->C, i != k ? a->m : l, a->norm);
+        a->status = inverse(a->block, a->C, block_size, a->norm);
         ReduceSum(a->p, &red, 1);
-        if(a->status == -1) return 0;
+        if (a->status == -1) return 0;
         set_block(a->A, a->block, a->n, a->m, i, i);
-        for(int x = 0; x < kp; x++){
+        
+        for (int x = 0; x < kp; x++) {
             int s = i + x * a->p + a->index;
+            int is_last_s = (s == k);
+            int block_size_s = is_last_s ? l : a->m; 
+
             get_block(a->A, a->block, a->n, a->m, i, s);
-            multiply(a->C, a->block, a->dop_mat, i != k ? a->m : l, i != k ? a->m : l, i != k ? a->m : l, s != k ? a->m : l);
-            set_block(a->A, a->dop_mat, a->n, a->m, i, s); 
-        }
-        if(a->index <= lp){
-            int s = i + kp * a->p + a->index;
-            get_block(a->A, a->block, a->n, a->m, i, s);
-            multiply(a->C, a->block, a->dop_mat, i != k ? a->m : l, i != k ? a->m : l, i != k ? a->m : l, s != k ? a->m : l);
+            multiply(a->C, a->block, a->dop_mat, block_size, block_size, block_size, block_size_s);
             set_block(a->A, a->dop_mat, a->n, a->m, i, s);
         }
-        if(a->index == a->p){
-            get_vector(a->B, a->X, a->n, a->m, i);
-            multiply(a->C, a->X, a->dop_mat, i != k ? a->m : l, i != k ? a->m : l, i != k ? a->m : l, 1);
-            set_vector(a->B, a->dop_mat, a->n, a->m, i);
-            
-        }
-        
-        // ReduceSum(a->p, &red, 1);
 
-        for(int y = 0; y < h; y++){
-            if(y == i) continue;
+        if (a->index <= lp) {
+            int s = i + kp * a->p + a->index;
+            int is_last_s = (s == k);
+            int block_size_s = is_last_s ? l : a->m;
+
+            get_block(a->A, a->block, a->n, a->m, i, s);
+            multiply(a->C, a->block, a->dop_mat, block_size, block_size, block_size, block_size_s);
+            set_block(a->A, a->dop_mat, a->n, a->m, i, s);
+        }
+
+        if (a->index == a->p) {
+            get_vector(a->B, a->X, a->n, a->m, i);
+            multiply(a->C, a->X, a->dop_mat, block_size, block_size, block_size, 1);
+            set_vector(a->B, a->dop_mat, a->n, a->m, i);
+        }
+
+        for (int y = 0; y < h; y++) {
+            if (y == i) continue;
+            int block_size_y = (y == k) ? l : a->m;
+
             get_block(a->A, a->block, a->n, a->m, y, i);
-            //ReduceSum(a->p, &red, 1);
-            for(int x = 0; x < kp; x++){
+
+            for (int x = 0; x < kp; x++) {
                 int s = i + x * a->p + a->index;
+                int is_last_s = (s == k);
+                int block_size_s = is_last_s ? l : a->m;
+
                 get_block(a->A, a->C, a->n, a->m, i, s);
-                multiply(a->block, a->C, a->dop_mat, (y != k ? a->m : l), a->m, a->m, (s != k ? a->m : l));
+                multiply(a->block, a->C, a->dop_mat, block_size_y, a->m, a->m, block_size_s);
                 get_block(a->A, a->C, a->n, a->m, y, s);
-                subtract(a->C, a->dop_mat, (y != k ? a->m : l), (s != k ? a->m : l));
+                subtract(a->C, a->dop_mat, block_size_y, block_size_s);
                 set_block(a->A, a->C, a->n, a->m, y, s);
             }
-            if(a->index <= lp){
+
+            if (a->index <= lp) {
                 int s = i + kp * a->p + a->index;
+                int is_last_s = (s == k);
+                int block_size_s = is_last_s ? l : a->m;
+
                 get_block(a->A, a->C, a->n, a->m, i, s);
-                multiply(a->block, a->C, a->dop_mat, (y != k ? a->m : l), a->m, a->m, (s != k ? a->m : l));
+                multiply(a->block, a->C, a->dop_mat, block_size_y, a->m, a->m, block_size_s);
                 get_block(a->A, a->C, a->n, a->m, y, s);
-                subtract(a->C, a->dop_mat, (y != k ? a->m : l), (s != k ? a->m : l));
+                subtract(a->C, a->dop_mat, block_size_y, block_size_s);
                 set_block(a->A, a->C, a->n, a->m, y, s);
             }
-            if(a->index == a->p){
+
+            if (a->index == a->p) {
                 get_vector(a->B, a->X, a->n, a->m, i);
-                multiply(a->block, a->X, a->dop_mat, (y != k ? a->m : l), i != k ? a->m : l, i != k ? a->m : l, 1);
+                multiply(a->block, a->X, a->dop_mat, block_size_y, block_size, block_size, 1);
                 get_vector(a->B, a->X, a->n, a->m, y);
-                subtract(a->X, a->dop_mat, (y != k ? a->m : l), 1);
+                subtract(a->X, a->dop_mat, block_size_y, 1);
                 set_vector(a->B, a->X, a->n, a->m, y);
-                //get_block(a->A, a->block, a->n, a->m, y, i);
-                //zero(a->block, (y != k ? a->m : l), i != k ? a->m : l);
-                //set_block(a->A, a->block, a->n, a->m, y, i);
             }
-            // ReduceSum(a->p, &red, 1);
+            
         }
         ReduceSum(a->p, &red, 1);
     }
@@ -186,7 +277,7 @@ int Jordan(double *A, double *B, double *X, double *C, double *block, double *do
             args[x].index = x + 1;
             args[x].status = 0;
             args[x].tid = threads[x];
-            if(pthread_create(&threads[x], NULL, thread_func, (void*)&args[x])){
+            if(pthread_create(&threads[x], NULL, thread_func2, (void*)&args[x])){
                 std::cerr << "THREAD CREATION ERROR" << std::endl;
                 for(int y = 0; y <= x; y++){
                     delete[] args[y].C;
@@ -211,8 +302,8 @@ int Jordan(double *A, double *B, double *X, double *C, double *block, double *do
         args[p - 1].p = p;
         args[p - 1].index = p;
         args[p - 1].status = 0;
-        args[p - 1].tid = p - 1;
-        thread_func((void*)&args[p - 1]);
+        // args[p - 1].tid = p - 1;
+        thread_func2((void*)&args[p - 1]);
         for(int x = 0; x < p - 1; x++){
             pthread_join(threads[x], 0);
         }

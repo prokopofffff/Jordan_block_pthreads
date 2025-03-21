@@ -4,6 +4,14 @@
 #include <cstring>
 #include <float.h>
 #include <iostream>
+#include <sys/time.h>
+#include <sys/resource.h>
+#ifdef __linux__
+#include <sys/sysinfo.h>
+#elif __APPLE__
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
 #include "matrix.h"
 
 #define EPSILON 1.0e-14
@@ -41,5 +49,7 @@ double absolute(double i);
 void E(double *A, int n);
 
 void zero(double *A, int n, int m);
+
+double get_full_time();
 
 #endif

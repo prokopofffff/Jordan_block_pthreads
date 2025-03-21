@@ -45,9 +45,9 @@ int main(int argc, char* argv[]){
         get_free_memb(A, B, n);
 
         // double* time = nullptr;
-        double start1 = time(NULL); 
+        double start1 = get_full_time(); 
         int flag = Jordan(A, B, X, C, block, dop_mat, n, m, p);//, time);
-        double t1 = time(NULL) - start1;
+        double t1 = get_full_time() - start1;
         if(s == 0){
             filename = argv[6];
             matrix_input(filename, A, n);
