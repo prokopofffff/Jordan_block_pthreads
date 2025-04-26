@@ -51,25 +51,7 @@ void* thread_func2(void* args) {
         int block_size = is_last_k ? l : a->m;
 
         get_block(a->A, a->block, a->n, a->m, r, r);
-        std::cout << "block before inverse\n";
-        for(int i = 0; i < a->n; i++){
-            for(int j = 0; j < a->n; j++){
-                std::cout << a->A[i * a->n + j] << " ";
-
-            }
-            std::cout << std::endl;
-
-        }
         a->status = inverse(a->block, a->C, block_size, a->norm);
-        std::cout << "block after inverse\n";
-        for(int i = 0; i < a->n; i++){
-            for(int j = 0; j < a->m; j++){
-                std::cout << a->C[i * a->n + j] << " ";
-
-            }
-            std::cout << std::endl;
-
-        }
         ReduceSum(a->p, &red, 1);
         if (a->status == -1) return 0;
         set_block(a->A, a->block, a->n, a->m, r, r);
@@ -83,16 +65,6 @@ void* thread_func2(void* args) {
             set_block(a->A, a->dop_mat, a->n, a->m, r, s);
         }
 
-        std::cout << "block after multiplication\n";
-        for(int i = 0; i < a->n; i++){
-            for(int j = 0; j < a->n; j++){
-                std::cout << a->A[i * a->n + j] << " ";
-
-            }
-            std::cout << std::endl;
-
-        }
-
         if (a->index <= lp) {
             int s = r + kp * a->p + a->index;
             int is_last_s = (s == k);
@@ -103,26 +75,10 @@ void* thread_func2(void* args) {
             set_block(a->A, a->dop_mat, a->n, a->m, r, s);
         }
 
-        std::cout << "block after dop multiplication\n";
-        for(int i = 0; i < a->n; i++){
-            for(int j = 0; j < a->n; j++){
-                std::cout << a->A[i * a->n + j] << " ";
-
-            }
-            std::cout << std::endl;
-
-        }
-
         if (a->index == a->p) {
             get_vector(a->B, a->X, a->n, a->m, r);
             multiply(a->C, a->X, a->dop_mat, block_size, block_size, block_size, 1);
             set_vector(a->B, a->dop_mat, a->n, a->m, r);
-        }
-
-        std::cout << "block after vector multiplication\n";
-        for(int i = 0; i < a->n; i++){
-            std::cout << a->B[i] << " ";
-            std::cout << std::endl;
         }
 
         for(int j = 0; j <= bpt; j++){
@@ -143,53 +99,12 @@ void* thread_func2(void* args) {
                 subtract(a->block, a->dop_mat, block_size_rows, block_size_cols);
                 set_block(a->A, a->block, a->n, a->m, i, c);
             }
-            std::cout << j << "!!!!!!!!!!!!!\n";
-            std::cout << "block after sub\n";
-            for(int i = 0; i < a->n; i++){
-                for(int j = 0; j < a->n; j++){
-                    std::cout << a->A[i * a->n + j] << " ";
-                }
-                std::cout << std::endl;
-            }
 
             get_vector(a->B, a->X, a->n, a->m, r);
-            std::cout << "vector before multiply\n";
-            for(int i = 0; i < a->n; i++){
-                std::cout << a->X[i] << " ";
-            }
-            std::cout << std::endl;
-            std::cout << "block CCCCCCCCCCC\n";
-            for(int i = 0; i < a->n; i++){
-                for(int j = 0; j < a->m; j++){
-                    std::cout << a->C[i * a->n + j] << " ";
-                }
-                std::cout << std::endl;
-            }
             multiply(a->C, a->X, a->dop_mat, block_size_rows, block_size, block_size, 1);
-            std::cout << "vector after multiply\n";
-            for(int i = 0; i < a->n; i++){
-                std::cout << a->dop_mat[i] << " ";
-            }
-            std::cout << std::endl;
             get_vector(a->B, a->X, a->n, a->m, i);
-            std::cout << "vector before sub\n";
-            for(int i = 0; i < a->n; i++){
-                std::cout << a->X[i] << " ";
-            }
-            std::cout << std::endl;
             subtract(a->X, a->dop_mat, block_size_rows, 1);
-            std::cout << "vector after sub\n";
-            for(int i = 0; i < a->n; i++){
-                std::cout << a->X[i] << " ";
-            }
-            std::cout << std::endl;
             set_vector(a->B, a->X, a->n, a->m, i);
-
-            std::cout << "vector after set\n";
-            for(int i = 0; i < a->n; i++){
-                std::cout << a->B[i] << " ";
-            }
-            std::cout << std::endl;
         }
         ReduceSum(a->p, &red, 1);
     }
